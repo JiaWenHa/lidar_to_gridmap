@@ -44,7 +44,7 @@ catkin_init_workspace
 
 2. 克隆代码到src目录
 ```bash
-git clone https://github.com/your_repo/lidar_to_gridmap.git
+git clone https://github.com/JiaWenHa/lidar_to_gridmap.git
 ```
 
 3. 编译项目
