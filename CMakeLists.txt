@@ -126,7 +126,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -215,6 +215,10 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
+# 将 sensor_circle.cpp 编译成库
+add_library(sensor_circle_lib src/sensor_circle.cpp)
+target_link_libraries(sensor_circle_lib ${catkin_LIBRARIES})
+
 
 add_executable(lidar_to_gridmap src/lidar_to_gridmap.cpp)
-target_link_libraries(lidar_to_gridmap ${catkin_LIBRARIES})
+target_link_libraries(lidar_to_gridmap  sensor_circle_lib ${catkin_LIBRARIES})
