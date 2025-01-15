@@ -7,21 +7,20 @@
 #include <pcl/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <laser_geometry/laser_geometry.h>
-#include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <sensor_msgs/LaserScan.h>
 
 class LidarToGridMap {
 public:
-    LidarToGridMap() : tf_listener_(tf_buffer_) {
+    LidarToGridMap(ros::NodeHandle & nh, ros::NodeHandle & nh_param) : nh_(nh), nh_param_(nh_param){
         // 初始化参数
-        nh_.param("resolution", resolution_, 0.05);
-        nh_.param("gridmap_width", gridmap_width_, 400);
-        nh_.param("height_threshold_low", height_threshold_low_, 0.2);
-        nh_.param("height_threshold_high", height_threshold_high_, 0.8);
-        nh_.param("scan_range_min", scan_range_min_, 0.4);
-        nh_.param("scan_range_max", scan_range_max_, 12.0);
-        nh_.param("terrain_threshold", terrain_threshold_, 0.3);
+        nh_param_.param("resolution", resolution_, 0.05);
+        nh_param_.param("gridmap_width", gridmap_width_, 400);
+        nh_param_.param("height_threshold_low", height_threshold_low_, 0.2);
+        nh_param_.param("height_threshold_high", height_threshold_high_, 0.8);
+        nh_param_.param("scan_range_min", scan_range_min_, 0.4);
+        nh_param_.param("scan_range_max", scan_range_max_, 12.0);
+        nh_param_.param("terrain_threshold", terrain_threshold_, 0.3);
 
         origin_x_ = -gridmap_width_ * resolution_ / 2;
         origin_y_ = -gridmap_width_ * resolution_ / 2;
@@ -73,18 +72,18 @@ private:
         pcl::fromROSMsg(*cloud_msg, pcl_cloud);
 
         // 获取机器人位置
-        double robot_x = robot_position_.x;
-        double robot_y = robot_position_.y;
+        robot_position_x_ = robot_position_.x;
+        robot_position_y_ = robot_position_.y;
 
         // 将机器人位置转换为栅格地图坐标
-        int robot_grid_x = static_cast<int>((robot_x - origin_x_) / resolution_);
-        int robot_grid_y = static_cast<int>((robot_y - origin_y_) / resolution_);
+        int robot_grid_x_id = static_cast<int>((robot_position_x_ - origin_x_) / resolution_);
+        int robot_grid_y_id = static_cast<int>((robot_position_y_ - origin_y_) / resolution_);
 
         // 处理点云数据
         if (use_single_line_mode_) {
-            processSingleLineMode(pcl_cloud, robot_grid_x, robot_grid_y);
+            processSingleLineMode(pcl_cloud, robot_grid_x_id, robot_grid_y_id);
         } else {
-            processTerrainMode(pcl_cloud, robot_grid_x, robot_grid_y);
+            processTerrainMode(pcl_cloud, robot_grid_x_id, robot_grid_y_id);
         }
 
         // 发布栅格地图
@@ -93,7 +92,7 @@ private:
         grid_map_pub_.publish(grid_map_);
     }
 
-    void processSingleLineMode(const pcl::PointCloud<pcl::PointXYZ>& cloud, int robot_x, int robot_y) {
+    void processSingleLineMode(const pcl::PointCloud<pcl::PointXYZ>& cloud, int robot_grid_x_id, int robot_grid_y_id) {
         // 清空LaserScan数据
         std::fill(laserscan_.ranges.begin(), laserscan_.ranges.end(), std::numeric_limits<float>::infinity());
         // 清空地图
@@ -106,18 +105,6 @@ private:
                 // 计算点的极坐标（距离和角度）
                 float range = std::hypot(point.x, point.y);
                 float angle = std::atan2(point.y, point.x);
-                // 计算点的栅格坐标
-                int grid_x = static_cast<int>((point.x - origin_x_) / resolution_);
-                int grid_y = static_cast<int>((point.y - origin_y_) / resolution_);
-
-                // 更新栅格
-                if (grid_x >= 0 && grid_x < gridmap_width_ && grid_y >= 0 && grid_y < gridmap_width_) {
-                    int index = grid_y * gridmap_width_ + grid_x;
-                    grid_map_.data[index] = 100;  // 设置为占用
-                }
-
-                // 更新射线经过的栅格
-                updateRay(robot_x, robot_y, grid_x, grid_y);
 
                 // 将角度映射到LaserScan的索引
                 if (angle >= laserscan_.angle_min && angle <= laserscan_.angle_max) {
@@ -129,6 +116,21 @@ private:
                         }
                     }
                 }
+
+                double dis_point = std::sqrt(std::pow((point.x - robot_position_x_), 2) + std::pow((point.y - robot_position_y_),2));
+
+                if(dis_point <= scan_range_max_){
+                    // 计算点的栅格坐标
+                    int grid_x_id = static_cast<int>((point.x - origin_x_) / resolution_);
+                    int grid_y_id = static_cast<int>((point.y - origin_y_) / resolution_);
+                    // 更新栅格
+                    if (grid_x_id >= 0 && grid_x_id < gridmap_width_ && grid_y_id >= 0 && grid_y_id < gridmap_width_) {
+                        int index = grid_y_id * gridmap_width_ + grid_x_id;
+                        grid_map_.data[index] = 100;  // 设置为占用
+                    }
+                    // 更新射线经过的栅格
+                    updateRay(robot_grid_x_id, robot_grid_y_id, grid_x_id, grid_y_id);
+                }
             }
         }
 
@@ -137,7 +139,7 @@ private:
         laserscan_pub_.publish(laserscan_);
     }
 
-    void processTerrainMode(const pcl::PointCloud<pcl::PointXYZ>& cloud, int robot_x, int robot_y) {
+    void processTerrainMode(const pcl::PointCloud<pcl::PointXYZ>& cloud, int robot_grid_x_id, int robot_grid_y_id) {
         // 清空地图
         std::fill(grid_map_.data.begin(), grid_map_.data.end(), -1);
 
@@ -146,11 +148,11 @@ private:
 
         // 处理点云数据
         for (const auto& point : cloud.points) {
-            int grid_x = static_cast<int>((point.x - origin_x_) / resolution_);
-            int grid_y = static_cast<int>((point.y - origin_y_) / resolution_);
+            int grid_x_id = static_cast<int>((point.x - origin_x_) / resolution_);
+            int grid_y_id = static_cast<int>((point.y - origin_y_) / resolution_);
 
-            if (grid_x >= 0 && grid_x < gridmap_width_ && grid_y >= 0 && grid_y < gridmap_width_) {
-                auto& heights = height_map[{grid_x, grid_y}];
+            if (grid_x_id >= 0 && grid_x_id < gridmap_width_ && grid_y_id >= 0 && grid_y_id < gridmap_width_) {
+                auto& heights = height_map[{grid_x_id, grid_y_id}];
                 heights.first = std::min(heights.first, point.z);
                 heights.second = std::max(heights.second, point.z);
             }
@@ -158,13 +160,13 @@ private:
 
         // 更新栅格地图
         for (const auto& [grid, heights] : height_map) {
-            auto [grid_x, grid_y] = grid;
+            auto [grid_x_id, grid_y_id] = grid;
             float height_diff = heights.second - heights.first;
 
             if (height_diff > terrain_threshold_) {
-                int index = grid_y * gridmap_width_ + grid_x;
+                int index = grid_y_id * gridmap_width_ + grid_x_id;
                 grid_map_.data[index] = 100;  // 设置为占用
-                updateRay(robot_x, robot_y, grid_x, grid_y);
+                updateRay(robot_grid_x_id, robot_grid_y_id, grid_x_id, grid_y_id);
             }
         }
     }
@@ -212,9 +214,12 @@ private:
     double scan_range_max_;
     double terrain_threshold_;
     bool use_single_line_mode_ = true;  // 默认使用单线模式
+    double robot_position_x_;
+    double robot_position_y_;
 
     // ROS相关
     ros::NodeHandle nh_;
+    ros::NodeHandle nh_param_;
     ros::Subscriber pointcloud_sub_;
     ros::Subscriber odom_sub_;
     ros::Publisher grid_map_pub_;
@@ -222,13 +227,13 @@ private:
     nav_msgs::OccupancyGrid grid_map_;
     geometry_msgs::Point robot_position_;
     sensor_msgs::LaserScan laserscan_;
-    tf2_ros::Buffer tf_buffer_;
-    tf2_ros::TransformListener tf_listener_;
 };
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "lidar_to_gridmap");
-    LidarToGridMap lidar_to_gridmap;
+    ros::NodeHandle nh_param("~");
+    ros::NodeHandle nh;
+    LidarToGridMap lidar_to_gridmap(nh, nh_param);
     ros::spin();
     return 0;
 }

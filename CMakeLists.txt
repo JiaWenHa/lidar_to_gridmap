@@ -18,7 +18,9 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_geometry_msgs
 )
 
-# Enable C++11 support
+
+# 设置编译类型为 Debug
+set(CMAKE_BUILD_TYPE Debug)
 add_compile_options(-std=c++17)
 
 ## System dependencies are found with CMake's conventions
