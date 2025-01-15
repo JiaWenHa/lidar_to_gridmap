@@ -6,9 +6,10 @@
         <param name="height_threshold_high" type="double" value="0.8" />
         <param name="scan_range_min" type="double" value="0.4" />
         <param name="scan_range_max" type="double" value="12" />
+        <param name="circle_points_num" value="600" />
         
         <!-- 设置栅格地图参数 -->
-        <param name="resolution" type="double" value="0.1" />
+        <param name="resolution" type="double" value="0.2" />
         <param name="gridmap_width" type="int" value="800" />
         <param name="terrain_threshold" type="double" value="0.3" />
     </node>

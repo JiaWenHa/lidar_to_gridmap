@@ -34,11 +34,13 @@ private:
 
     void updateRay(int x0, int y0, int x1, int y1);
 
+    void updateRayFreeGrid(int x0, int y0, int x1, int y1);
+
     // 参数
     double resolution_;
     int gridmap_width_;
-    double origin_x_;
-    double origin_y_;
+    double origin_position_x_;
+    double origin_position_y_;
     double height_threshold_low_;
     double height_threshold_high_;
     double scan_range_min_;
@@ -48,7 +50,10 @@ private:
     double robot_position_x_;
     double robot_position_y_;
 
+    bool initialized_;
+
     sensorCircle sensor_circle_;
+    int circle_points_num_;
 
     // ROS相关
     ros::NodeHandle& nh_;
