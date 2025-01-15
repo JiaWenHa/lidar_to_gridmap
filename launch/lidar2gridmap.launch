@@ -1,0 +1,18 @@
+<launch>
+    <!-- 启动 lidar_to_gridmap 节点 -->
+    <node name="lidar_to_gridmap" pkg="lidar_to_gridmap" type="lidar_to_gridmap" output="screen">
+        <!-- 设置高度阈值参数 -->
+        <param name="height_threshold_low" type="double" value="0.2" />
+        <param name="height_threshold_high" type="double" value="0.8" />
+        <param name="scan_range_min" type="double" value="0.4" />
+        <param name="scan_range_max" type="double" value="12" />
+        
+        <!-- 设置栅格地图参数 -->
+        <param name="resolution" type="double" value="0.1" />
+        <param name="gridmap_width" type="int" value="800" />
+        <param name="terrain_threshold" type="double" value="0.3" />
+    </node>
+
+    <!-- 启动 RViz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find lidar_to_gridmap)/rviz/lidar2gridmap.rviz" output="screen" />
+</launch>
